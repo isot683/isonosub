@@ -1,7 +1,6 @@
 from datetime import datetime
 from kickapi import KickAPI
 from rich.console import Console
-from rich.panel import Panel
 
 console = Console()
 
@@ -51,10 +50,9 @@ def main():
     stream_url = get_video_stream_url(video_url, quality)
 
     if stream_url:
-        console.print("\n[bold green]✅ Stream URL bulundu![/bold green]\n")
-        console.print(Panel(stream_url, style="bright_blue"))
+        print(stream_url)
     else:
-        console.print("[bold red]❌ Video bulunamadı veya URL alınamadı.[/bold red]")
+        print("❌ Video bulunamadı veya URL alınamadı.")
 
 if __name__ == "__main__":
     main()
