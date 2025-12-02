@@ -1,58 +1,81 @@
-from datetime import datetime
+import sys
+from datetime import datetime, timedelta
 from kickapi import KickAPI
 from rich.console import Console
+from rich.panel import Panel
+import cloudscraper
 
-console = Console()
+def choose_quality():
+    print("\n🎦 Yayın Kalitesi Seç\n")
+    choices = ["Auto","1080p60","720p60","480p30","360p30","160p30"]
 
-def get_video_stream_url(video_url: str, quality: str) -> str | None:
-    try:
+    for i, c in enumerate(choices, 1):
+        print(f"{i}) {c}")
+
+    while True:
+        try:
+            s = int(input("\nSeçim: "))
+            if 1 <= s <= len(choices):
+                return choices[s-1]
+        except:
+            pass
+        print("❌ Geçersiz seçim")
+
+class KickStreamFinder:
+    def __init__(self):
+        self.session = cloudscraper.CloudScraper()
+        self.console = Console()
+        self.api = KickAPI()
+
+    def get_stream(self, video_url, quality):
         parts = video_url.split("/")
-        channel_name = parts[3]
-        video_slug = parts[5]
+        if len(parts) < 6:
+            return None
 
-        kick_api = KickAPI()
-        channel = kick_api.channel(channel_name)
+        channel = parts[3]
+        slug = parts[5]
 
-        for video in channel.videos:
-            if video.uuid == video_slug:
-                thumbnail_url = video.thumbnail["src"]
-                start_time = datetime.strptime(video.start_time, "%Y-%m-%d %H:%M:%S")
-                path_parts = thumbnail_url.split("/")
-                channel_id, video_id = path_parts[4], path_parts[5]
+        chan = self.api.channel(channel)
 
-                stream_url = (
-                    f"https://stream.kick.com/ivs/v1/196233775518/"
-                    f"{channel_id}/{start_time.year}/{start_time.month}/"
-                    f"{start_time.day}/{start_time.hour}/{start_time.minute}/"
-                    f"{video_id}/media/hls/{quality}/playlist.m3u8"
-                )
-                return stream_url
+        for vid in chan.videos:
+            if vid.uuid == slug:
+                thumb = vid.thumbnail["src"]
+                t = datetime.strptime(vid.start_time, "%Y-%m-%d %H:%M:%S")
+
+                p = thumb.split("/")
+                cid = p[4]
+                vid_id = p[5]
+
+                bases = [
+                    "https://stream.kick.com/ivs/v1/196233775518",
+                    "https://stream.kick.com/3c81249a5ce0/ivs/v1/196233775518",
+                    "https://stream.kick.com/0f3cb0ebce7/ivs/v1/196233775518"
+                ]
+
+                for off in range(-5, 6):
+                    tt = t + timedelta(minutes=off)
+
+                    for base in bases:
+                        if quality.lower() == "auto":
+                            url = f"{base}/{cid}/{tt.year}/{tt.month}/{tt.day}/{tt.hour}/{tt.minute}/{vid_id}/media/hls/master.m3u8"
+                        else:
+                            url = f"{base}/{cid}/{tt.year}/{tt.month}/{tt.day}/{tt.hour}/{tt.minute}/{vid_id}/media/hls/{quality}/playlist.m3u8"
+
+                        try:
+                            if self.session.head(url, timeout=4).status_code == 200:
+                                return url
+                        except:
+                            continue
+
         return None
-    except Exception:
-        return None
 
-def main():
-    video_url = input("🎥 Kick video URL gir: ").strip()
+link = input("Kick video linki: ")
+quality = choose_quality()
 
-    print("\n📺 Kalite seç (yaz):")
-    print("1) 1080p60\n2) 720p60\n3) 480p30\n4) 360p30\n5) 160p30")
-    choice = input("Seçim: ").strip()
+stream = KickStreamFinder().get_stream(link, quality)
 
-    qualities = {
-        "1": "1080p60",
-        "2": "720p60",
-        "3": "480p30",
-        "4": "360p30",
-        "5": "160p30"
-    }
-    quality = qualities.get(choice, "720p60")
-
-    stream_url = get_video_stream_url(video_url, quality)
-
-    if stream_url:
-        print(stream_url)
-    else:
-        print("❌ Video bulunamadı veya URL alınamadı.")
-
-if __name__ == "__main__":
-    main()
+if not stream:
+    print("\n❌ Yayın bulunamadı")
+else:
+    print("\n✅ STREAM LINK:\n")
+    print(stream)
